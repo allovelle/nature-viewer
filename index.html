@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Nature View</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: black;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            touch-action: manipulation;
+            font-family: sans-serif;
+            color: white;
+        }
+
+        .img-layer {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            max-width: 100%;
+            max-height: 100%;
+            transform: translate(-50%, -50%);
+            object-fit: contain;
+            transition: opacity 0.5s ease;
+            width: auto;
+            height: auto;
+        }
+
+        #imgA {
+            z-index: 1;
+        }
+
+        #imgB {
+            z-index: 2;
+        }
+
+        #overlay {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            z-index: 3;
+        }
+    </style>
+</head>
+
+<body>
+    <img id="imgA" class="img-layer" alt="Previous image" />
+    <img id="imgB" class="img-layer" alt="Current image" />
+    <div id="overlay"></div>
+
+    <script>
+        const overlay = document.getElementById("overlay");
+        const imgA = document.getElementById("imgA");
+        const imgB = document.getElementById("imgB");
+
+        let isLoading = false;
+        let useA = false; // we toggle this to switch between imgA and imgB
+        let resizeTimer = null;
+
+        function getSharpDimensions() {
+            const dpr = window.devicePixelRatio || 1;
+            return {
+                w: Math.ceil(window.innerWidth * dpr),
+                h: Math.ceil(window.innerHeight * dpr)
+            };
+        }
+
+        function getCurrentAndNextImages() {
+            return useA ? [imgA, imgB] : [imgB, imgA];
+        }
+
+        async function loadImage() {
+            if (isLoading) return;
+            isLoading = true;
+
+            const { w, h } = getSharpDimensions();
+            const url = `https://picsum.photos/${w}/${h}?random=${Date.now()}`;
+            const now = new Date();
+            const timestamp = `${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} on ${now.toLocaleDateString()}`;
+
+            const [currentImg, nextImg] = getCurrentAndNextImages();
+            nextImg.style.opacity = 0;
+            nextImg.src = ""; // reset src so image doesn't reuse cache visually
+            nextImg.onload = () => {
+                nextImg.style.opacity = 1;
+                currentImg.style.opacity = 0;
+
+                overlay.textContent = `Downloaded at ${timestamp}`;
+                useA = !useA;
+                isLoading = false;
+            };
+            nextImg.onerror = () => {
+                overlay.textContent = `⚠️ Failed to load image`;
+                isLoading = false;
+            };
+            nextImg.src = url;
+        }
+
+        function scheduleResizeLoad() {
+            if (resizeTimer) clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(loadImage, 300);
+        }
+
+        window.addEventListener("click", loadImage);
+        window.addEventListener("touchend", loadImage);
+        window.addEventListener("resize", scheduleResizeLoad);
+        window.addEventListener("DOMContentLoaded", loadImage);
+    </script>
+</body>
+
+</html>
