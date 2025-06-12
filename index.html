@@ -3,8 +3,8 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Nature View</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nature Viewer</title>
     <style>
         html,
         body {
@@ -12,111 +12,181 @@
             padding: 0;
             background: black;
             overflow: hidden;
-            height: 100%;
-            width: 100%;
             touch-action: manipulation;
-            font-family: sans-serif;
-            color: white;
+            user-select: none;
         }
 
-        .img-layer {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            max-width: 100%;
-            max-height: 100%;
-            transform: translate(-50%, -50%);
-            object-fit: contain;
-            transition: opacity 0.5s ease;
-            width: auto;
-            height: auto;
+        #imageContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
         }
 
-        #imgA {
-            z-index: 1;
-        }
-
-        #imgB {
-            z-index: 2;
+        #mainImage {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            opacity: 1;
+            transition: opacity 0.6s ease;
         }
 
         #overlay {
-            position: fixed;
-            bottom: 20px;
+            position: absolute;
+            top: 50%;
             left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.6);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            pointer-events: none;
-            z-index: 3;
+            transform: translate(-50%, -50%);
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            display: none;
+            font-size: 1rem;
+        }
+
+        #spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        #imageContainer {
+            position: relative;
+            /* make container a positioning context */
+            overflow: hidden;
+        }
+
+        #spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            /* high z-index */
+            display: none;
+        }
+
+        #imageContainer img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            z-index: 1;
+            /* lower than spinner */
+            transition: opacity 0.6s ease;
+        }
+
+
+        @keyframes spin {
+            0% {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+
+            100% {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
         }
     </style>
 </head>
 
 <body>
-    <img id="imgA" class="img-layer" alt="Previous image" />
-    <img id="imgB" class="img-layer" alt="Current image" />
-    <div id="overlay"></div>
+    <div id="imageContainer">
+        <img id="mainImage" alt="Nature image" />
+        <div id="overlay">⚠️ Failed to load image</div>
+        <div id="spinner"></div>
+    </div>
 
     <script>
+        const imageContainer = document.getElementById("imageContainer");
+        let mainImage = document.getElementById("mainImage");  // note: let, not const, so we can update it
         const overlay = document.getElementById("overlay");
-        const imgA = document.getElementById("imgA");
-        const imgB = document.getElementById("imgB");
+        const spinner = document.getElementById("spinner");
 
         let isLoading = false;
-        let useA = false; // we toggle this to switch between imgA and imgB
-        let resizeTimer = null;
 
-        function getSharpDimensions() {
+        function getBestSize() {
             const dpr = window.devicePixelRatio || 1;
-            return {
-                w: Math.ceil(window.innerWidth * dpr),
-                h: Math.ceil(window.innerHeight * dpr)
-            };
+            const width = Math.round(window.innerWidth * dpr);
+            const height = Math.round(window.innerHeight * dpr);
+            return { width, height };
         }
 
-        function getCurrentAndNextImages() {
-            return useA ? [imgA, imgB] : [imgB, imgA];
+        function getImageUrl() {
+            const { width, height } = getBestSize();
+            return `https://picsum.photos/${width}/${height}?random=${Date.now()}`;
         }
 
-        async function loadImage() {
+        function loadImage() {
             if (isLoading) return;
             isLoading = true;
+            spinner.style.display = "block";
 
-            const { w, h } = getSharpDimensions();
-            const url = `https://picsum.photos/${w}/${h}?random=${Date.now()}`;
-            const now = new Date();
-            const timestamp = `${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} on ${now.toLocaleDateString()}`;
+            const nextImage = new Image();
+            nextImage.alt = "Nature image";
+            nextImage.style.position = "absolute";
+            nextImage.style.top = "0";
+            nextImage.style.left = "0";
+            nextImage.style.width = "100vw";
+            nextImage.style.height = "100vh";
+            nextImage.style.objectFit = "cover";
+            nextImage.style.opacity = "0";
+            nextImage.style.transition = "opacity 0.6s ease";
 
-            const [currentImg, nextImg] = getCurrentAndNextImages();
-            nextImg.style.opacity = 0;
-            nextImg.src = ""; // reset src so image doesn't reuse cache visually
-            nextImg.onload = () => {
-                nextImg.style.opacity = 1;
-                currentImg.style.opacity = 0;
+            nextImage.onload = () => {
+                overlay.style.display = "none";
+                spinner.style.display = "none";
+                isLoading = false;
 
-                overlay.textContent = `Downloaded at ${timestamp}`;
-                useA = !useA;
+                imageContainer.appendChild(nextImage);
+
+                // Trigger fade: fade in new image, fade out old
+                requestAnimationFrame(() => {
+                    nextImage.style.opacity = "1";
+                    mainImage.style.opacity = "0";
+                });
+
+                setTimeout(() => {
+                    imageContainer.removeChild(mainImage);
+                    nextImage.id = "mainImage";
+                    mainImage = nextImage; // Update reference here
+                }, 700);
+            };
+
+            nextImage.onerror = () => {
+                spinner.style.display = "none";
+                overlay.style.display = "block";
                 isLoading = false;
             };
-            nextImg.onerror = () => {
-                overlay.textContent = `⚠️ Failed to load image`;
-                isLoading = false;
-            };
-            nextImg.src = url;
+
+            nextImage.src = getImageUrl();
         }
 
-        function scheduleResizeLoad() {
-            if (resizeTimer) clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(loadImage, 300);
-        }
+        // Initial load
+        loadImage();
 
-        window.addEventListener("click", loadImage);
-        window.addEventListener("touchend", loadImage);
-        window.addEventListener("resize", scheduleResizeLoad);
-        window.addEventListener("DOMContentLoaded", loadImage);
+        // Tap anywhere to get new image
+        imageContainer.addEventListener("click", loadImage);
+        imageContainer.addEventListener("touchend", loadImage);
+
+        // Prevent mass image spam on resize
+        let resizeTimer;
+        window.addEventListener("resize", () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(loadImage, 500);
+        });
+
     </script>
 </body>
 
